@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>音檔轉換器</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f; --surface: #13131a; --card: #1c1c27; --border: #2a2a3d;
+    --accent: #7c6aff; --accent2: #ff6a9b; --green: #3dffa0;
+    --text: #e8e8f0; --muted: #6b6b8a; --radius: 18px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace;
+    min-height: 100dvh; display: flex; flex-direction: column;
+    align-items: center; padding: 0 0 56px; overflow-x: hidden;
+  }
+  .blob { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.12; pointer-events: none; z-index: 0; }
+  .b1 { width: 340px; height: 340px; background: var(--accent); top: -80px; right: -80px; }
+  .b2 { width: 260px; height: 260px; background: var(--accent2); bottom: 60px; left: -60px; }
+  .wrap { position: relative; z-index: 1; width: 100%; max-width: 480px; padding: 0 20px; }
+
+  header { padding: 52px 0 32px; }
+  .tag { display: inline-block; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 99px; padding: 4px 12px; margin-bottom: 14px; }
+  h1 { font-family: 'Syne', sans-serif; font-size: clamp(34px,9vw,46px); font-weight: 800; line-height: 1.05; letter-spacing: -.02em; }
+  h1 span { color: var(--accent); }
+  .sub { margin-top: 10px; color: var(--muted); font-size: 12px; letter-spacing: .04em; }
+
+  /* Support badge */
+  .support-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+  .badge { font-size: 10px; letter-spacing: .08em; padding: 4px 10px; border-radius: 99px; border: 1px solid; }
+  .badge.ok  { color: var(--green); border-color: var(--green); background: rgba(61,255,160,.07); }
+  .badge.no  { color: var(--accent2); border-color: var(--accent2); background: rgba(255,106,155,.07); }
+
+  .drop-zone { background: var(--card); border: 2px dashed var(--border); border-radius: var(--radius); padding: 36px 24px; text-align: center; cursor: pointer; transition: border-color .25s, background .25s, transform .15s; margin-bottom: 20px; }
+  .drop-zone.over { border-color: var(--accent); background: #1f1f30; transform: scale(1.01); }
+  .drop-zone.ready { border-color: var(--green); border-style: solid; }
+  .dicon { width: 58px; height: 58px; margin: 0 auto 16px; background: linear-gradient(135deg,var(--accent),var(--accent2)); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 26px; }
+  .dtitle { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; margin-bottom: 6px; }
+  .dsub { color: var(--muted); font-size: 11px; letter-spacing: .06em; }
+  #fi { display: none; }
+
+  .fcard { display: none; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 20px; }
+  .fcard.show { display: flex; }
+  .ficon { width: 40px; height: 40px; background: linear-gradient(135deg,var(--accent),var(--accent2)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .fdet { flex: 1; min-width: 0; }
+  .fname { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+  .fmeta { color: var(--muted); font-size: 10px; }
+  .xbtn { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 4px; line-height: 1; transition: color .2s; }
+
+  .slabel { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .fgrid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 20px; }
+  .fbtn { background: var(--card); border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 6px; text-align: center; cursor: pointer; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 12px; color: var(--muted); transition: all .2s; }
+  .fbtn .fext { font-size: 14px; display: block; margin-bottom: 2px; }
+  .fbtn .fnote { font-size: 9px; font-family: 'DM Mono',monospace; letter-spacing: .04em; }
+  .fbtn.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 4px 20px rgba(124,106,255,.35); }
+  .fbtn:disabled { opacity: .3; cursor: not-allowed; }
+  .fbtn:not(:disabled):active { transform: scale(.95); }
+
+  .qrow { display: flex; gap: 8px; margin-bottom: 24px; }
+  .qbtn { flex: 1; background: var(--card); border: 1.5px solid var(--border); border-radius: 12px; padding: 10px 4px; text-align: center; cursor: pointer; font-size: 11px; color: var(--muted); transition: all .2s; }
+  .qbtn .ql { display: block; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; color: var(--text); margin-bottom: 2px; }
+  .qbtn.active { border-color: var(--green); color: var(--green); }
+  .qbtn.active .ql { color: var(--green); }
+  .qbtn:active { transform: scale(.96); }
+
+  .gobtn { width: 100%; background: linear-gradient(135deg,var(--accent),var(--accent2)); border: none; border-radius: 16px; padding: 18px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 16px; color: #fff; cursor: pointer; letter-spacing: .06em; transition: opacity .2s, transform .15s; box-shadow: 0 6px 30px rgba(124,106,255,.3); }
+  .gobtn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+  .gobtn:not(:disabled):active { transform: scale(.97); }
+
+  .prog { display: none; margin-top: 20px; background: var(--card); border-radius: 14px; padding: 18px; border: 1px solid var(--border); }
+  .prog.show { display: block; }
+  .phead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .plabel { font-size: 12px; color: var(--muted); letter-spacing: .06em; }
+  .ppct { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; }
+  .pbg { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .pfill { height: 100%; background: linear-gradient(90deg,var(--accent),var(--green)); border-radius: 99px; width: 0%; transition: width .4s ease; }
+  .pmsg { margin-top: 10px; font-size: 11px; color: var(--muted); min-height: 16px; }
+
+  .rcard { display: none; margin-top: 20px; background: linear-gradient(135deg,rgba(61,255,160,.08),rgba(124,106,255,.08)); border: 1.5px solid var(--green); border-radius: var(--radius); padding: 24px; text-align: center; }
+  .rcard.show { display: block; }
+  .ricon { font-size: 36px; margin-bottom: 10px; }
+  .rtitle { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; color: var(--green); margin-bottom: 6px; }
+  .rsub { color: var(--muted); font-size: 11px; margin-bottom: 18px; }
+  .dlbtn { display: inline-flex; align-items: center; gap: 8px; background: var(--green); color: #0a0a0f; border: none; border-radius: 12px; padding: 14px 28px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px; cursor: pointer; text-decoration: none; letter-spacing: .04em; }
+  .dlbtn:active { opacity: .8; }
+
+  .errmsg { display: none; margin-top: 16px; background: rgba(255,106,155,.1); border: 1px solid var(--accent2); border-radius: 12px; padding: 14px 16px; font-size: 12px; color: var(--accent2); line-height: 1.6; }
+  .errmsg.show { display: block; }
+
+  .spin { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: sp .7s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+
+  .notice { margin-top: 28px; background: var(--surface); border-radius: 12px; padding: 14px 16px; display: flex; gap: 10px; }
+  .nicon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .ntext { font-size: 11px; color: var(--muted); line-height: 1.6; }
+
+  .wav-only { display: none; margin-bottom: 14px; background: rgba(124,106,255,.1); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 14px; font-size: 11px; color: var(--accent); line-height: 1.5; }
+  .wav-only.show { display: block; }
+</style>
+</head>
+<body>
+<div class="blob b1"></div>
+<div class="blob b2"></div>
+
+<div class="wrap">
+  <header>
+    <div class="tag">✦ 本地運行 · 零上傳 · 免安裝</div>
+    <h1>音檔<br><span>轉換器</span></h1>
+    <p class="sub">// runs entirely in your browser, no server</p>
+  </header>
+
+  <div class="support-row" id="supportRow"></div>
+
+  <div class="drop-zone" id="dz">
+    <input type="file" id="fi" accept="audio/*,.m4a,.aac,.flac,.ogg,.wav,.mp3,.opus,.wma">
+    <div class="dicon">🎵</div>
+    <div class="dtitle">點擊選擇音檔</div>
+    <div class="dsub">m4a · mp3 · wav · flac · ogg · aac · opus 等</div>
+  </div>
+
+  <div class="fcard" id="fcard">
+    <div class="ficon">🎶</div>
+    <div class="fdet">
+      <div class="fname" id="fname">—</div>
+      <div class="fmeta" id="fmeta">—</div>
+    </div>
+    <button class="xbtn" id="xbtn">✕</button>
+  </div>
+
+  <div class="slabel">輸出格式</div>
+
+  <!-- WAV-only notice shown when MediaRecorder can only do WAV -->
+  <div class="wav-only" id="wavOnly">
+    ℹ 您的瀏覽器透過 Web Audio API 支援任何格式轉為 <strong>WAV</strong>（無損）。若需 MP3，請使用 Chrome 桌面版或下載後再用 App 轉換。
+  </div>
+
+  <div class="fgrid" id="fgrid">
+    <button class="fbtn active" data-fmt="wav">
+      <span class="fext">WAV</span><span class="fnote">無損 · 最相容</span>
+    </button>
+    <button class="fbtn" data-fmt="mp3" id="btnMp3">
+      <span class="fext">MP3</span><span class="fnote">需瀏覽器支援</span>
+    </button>
+    <button class="fbtn" data-fmt="ogg" id="btnOgg">
+      <span class="fext">OGG</span><span class="fnote">需瀏覽器支援</span>
+    </button>
+    <button class="fbtn" data-fmt="webm" id="btnWebm">
+      <span class="fext">WEBM</span><span class="fnote">需瀏覽器支援</span>
+    </button>
+    <button class="fbtn" data-fmt="flac" id="btnFlac">
+      <span class="fext">FLAC</span><span class="fnote">需瀏覽器支援</span>
+    </button>
+    <button class="fbtn" data-fmt="aac" id="btnAac">
+      <span class="fext">AAC</span><span class="fnote">需瀏覽器支援</span>
+    </button>
+  </div>
+
+  <div class="slabel">WAV 取樣率</div>
+  <div class="qrow" id="qrow">
+    <button class="qbtn" data-sr="22050"><span class="ql">22k</span>小檔案</button>
+    <button class="qbtn active" data-sr="44100"><span class="ql">44.1k</span>標準</button>
+    <button class="qbtn" data-sr="48000"><span class="ql">48k</span>高品質</button>
+  </div>
+
+  <button class="gobtn" id="gobtn" disabled>選擇檔案後開始</button>
+
+  <div class="prog" id="prog">
+    <div class="phead">
+      <span class="plabel">PROCESSING</span>
+      <span class="ppct" id="ppct">0%</span>
+    </div>
+    <div class="pbg"><div class="pfill" id="pfill"></div></div>
+    <div class="pmsg" id="pmsg">準備中…</div>
+  </div>
+
+  <div class="rcard" id="rcard">
+    <div class="ricon">✅</div>
+    <div class="rtitle">轉換完成！</div>
+    <div class="rsub" id="rsub"></div>
+    <a class="dlbtn" id="dlbtn" href="#">⬇ 下載檔案</a>
+  </div>
+
+  <div class="errmsg" id="errmsg"></div>
+
+  <div class="notice">
+    <span class="nicon">💡</span>
+    <span class="ntext">
+      <strong style="color:var(--text)">WAV 格式</strong>在所有瀏覽器均可使用（無需外部套件）。<br>
+      MP3／OGG 等格式依瀏覽器而定——Chrome 支援度最佳。<br>
+      所有處理完全在裝置本地完成，<strong style="color:var(--text)">不上傳任何資料</strong>。
+    </span>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  let file = null;
+  let outFmt = 'wav';
+  let sampleRate = 44100;
+
+  const g = id => document.getElementById(id);
+
+  // ── Detect MediaRecorder format support ──────────────────────────
+  const fmtMime = {
+    mp3:  ['audio/mpeg'],
+    ogg:  ['audio/ogg; codecs=vorbis', 'audio/ogg'],
+    webm: ['audio/webm; codecs=opus', 'audio/webm'],
+    flac: ['audio/flac'],
+    aac:  ['audio/aac', 'audio/mp4; codecs=mp4a.40.2'],
+  };
+
+  function supported(fmt) {
+    if (fmt === 'wav') return true; // always via Web Audio API
+    return (fmtMime[fmt] || []).some(m => {
+      try { return MediaRecorder.isTypeSupported(m); } catch(e) { return false; }
+    });
+  }
+
+  function bestMime(fmt) {
+    return (fmtMime[fmt] || []).find(m => {
+      try { return MediaRecorder.isTypeSupported(m); } catch(e) { return false; }
+    }) || '';
+  }
+
+  // Build support badges + disable unsupported format buttons
+  const row = g('supportRow');
+  ['wav','mp3','ogg','webm','flac','aac'].forEach(fmt => {
+    const ok = supported(fmt);
+    const b = document.createElement('span');
+    b.className = 'badge ' + (ok ? 'ok' : 'no');
+    b.textContent = fmt.toUpperCase() + (ok ? ' ✓' : ' ✗');
+    row.appendChild(b);
+    const btn = document.querySelector(`[data-fmt="${fmt}"]`);
+    if (btn && !ok) btn.disabled = true;
+  });
+
+  // ── Format buttons ────────────────────────────────────────────────
+  document.querySelectorAll('.fbtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      outFmt = btn.dataset.fmt;
+      g('qrow').style.display = outFmt === 'wav' ? 'flex' : 'none';
+    });
+  });
+
+  // ── Sample rate buttons ───────────────────────────────────────────
+  document.querySelectorAll('.qbtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.qbtn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      sampleRate = parseInt(btn.dataset.sr);
+    });
+  });
+
+  // ── File input ────────────────────────────────────────────────────
+  g('dz').addEventListener('click', () => g('fi').click());
+  g('dz').addEventListener('dragover', e => { e.preventDefault(); g('dz').classList.add('over'); });
+  g('dz').addEventListener('dragleave', () => g('dz').classList.remove('over'));
+  g('dz').addEventListener('drop', e => { e.preventDefault(); g('dz').classList.remove('over'); if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
+  g('fi').addEventListener('change', () => { if (g('fi').files[0]) setFile(g('fi').files[0]); });
+  g('xbtn').addEventListener('click', clearFile);
+
+  function setFile(f) {
+    file = f;
+    g('fname').textContent = f.name;
+    g('fmeta').textContent = (f.size / 1024 / 1024).toFixed(2) + ' MB · ' + (f.type || '音訊檔案');
+    g('fcard').classList.add('show');
+    g('dz').classList.add('ready');
+    g('gobtn').disabled = false;
+    g('gobtn').textContent = '開始轉換';
+    hideAll();
+  }
+
+  function clearFile() {
+    file = null;
+    g('fi').value = '';
+    g('fcard').classList.remove('show');
+    g('dz').classList.remove('ready');
+    g('gobtn').disabled = true;
+    g('gobtn').textContent = '選擇檔案後開始';
+    hideAll();
+  }
+
+  function hideAll() {
+    g('prog').classList.remove('show');
+    g('rcard').classList.remove('show');
+    g('errmsg').classList.remove('show');
+  }
+
+  function setProg(pct, msg) {
+    g('pfill').style.width = pct + '%';
+    g('ppct').textContent = pct + '%';
+    if (msg) g('pmsg').textContent = msg;
+  }
+
+  function showErr(msg) {
+    g('errmsg').textContent = '⚠ ' + msg;
+    g('errmsg').classList.add('show');
+  }
+
+  // ── WAV encoder (pure JS, no library) ────────────────────────────
+  function encodeWAV(audioBuffer, targetSR) {
+    const numCh = audioBuffer.numberOfChannels;
+    const origSR = audioBuffer.sampleRate;
+    let samples;
+
+    // Mix to mono if needed, then interleave channels
+    if (numCh === 1) {
+      samples = audioBuffer.getChannelData(0);
+    } else {
+      const L = audioBuffer.getChannelData(0);
+      const R = audioBuffer.getChannelData(1);
+      samples = new Float32Array(L.length);
+      for (let i = 0; i < L.length; i++) samples[i] = (L[i] + R[i]) / 2;
+    }
+
+    // Simple linear resample if needed
+    if (targetSR !== origSR) {
+      const ratio = origSR / targetSR;
+      const outLen = Math.floor(samples.length / ratio);
+      const out = new Float32Array(outLen);
+      for (let i = 0; i < outLen; i++) {
+        const src = i * ratio;
+        const lo = Math.floor(src);
+        const hi = Math.min(lo + 1, samples.length - 1);
+        const frac = src - lo;
+        out[i] = samples[lo] * (1 - frac) + samples[hi] * frac;
+      }
+      samples = out;
+    }
+
+    // Convert float32 → int16
+    const pcm = new Int16Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+
+    const dataLen = pcm.length * 2;
+    const buf = new ArrayBuffer(44 + dataLen);
+    const v = new DataView(buf);
+    const sr = targetSR;
+    const nc = 1;
+    const bps = 16;
+
+    function w(off, val, len) {
+      for (let i = 0; i < len; i++) { v.setUint8(off + i, val.charCodeAt(i)); }
+    }
+
+    w(0,  'RIFF', 4);
+    v.setUint32(4,  36 + dataLen, true);
+    w(8,  'WAVE', 4);
+    w(12, 'fmt ', 4);
+    v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true);          // PCM
+    v.setUint16(22, nc, true);
+    v.setUint32(24, sr, true);
+    v.setUint32(28, sr * nc * bps / 8, true);
+    v.setUint16(32, nc * bps / 8, true);
+    v.setUint16(34, bps, true);
+    w(36, 'data', 4);
+    v.setUint32(40, dataLen, true);
+
+    const arr = new Uint8Array(buf, 44);
+    for (let i = 0; i < pcm.length; i++) {
+      arr[i * 2]     = pcm[i] & 0xff;
+      arr[i * 2 + 1] = (pcm[i] >> 8) & 0xff;
+    }
+
+    return buf;
+  }
+
+  // ── MediaRecorder path (for MP3/OGG/WEBM/FLAC/AAC) ───────────────
+  function convertViaMediaRecorder(audioBuffer, mime) {
+    return new Promise((resolve, reject) => {
+      const ctx = new OfflineAudioContext(
+        audioBuffer.numberOfChannels,
+        audioBuffer.length,
+        audioBuffer.sampleRate
+      );
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuffer;
+      src.connect(ctx.destination);
+      src.start();
+
+      ctx.startRendering().then(rendered => {
+        const dest = new MediaStreamAudioDestinationNode(new AudioContext());
+        // Use a real-time context to stream into MediaRecorder
+        const rtCtx = new AudioContext({ sampleRate: audioBuffer.sampleRate });
+        const rtSrc = rtCtx.createBufferSource();
+        rtSrc.buffer = rendered;
+        const dest2 = rtCtx.createMediaStreamDestination();
+        rtSrc.connect(dest2);
+
+        const chunks = [];
+        const mr = new MediaRecorder(dest2.stream, { mimeType: mime });
+        mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+        mr.onstop = () => {
+          rtCtx.close();
+          resolve(new Blob(chunks, { type: mime }));
+        };
+        mr.onerror = e => { rtCtx.close(); reject(e.error); };
+
+        mr.start(100);
+        rtSrc.start();
+        rtSrc.onended = () => { setTimeout(() => mr.stop(), 200); };
+      }).catch(reject);
+    });
+  }
+
+  // ── Main convert ──────────────────────────────────────────────────
+  g('gobtn').addEventListener('click', async () => {
+    if (!file) return;
+
+    hideAll();
+    g('gobtn').disabled = true;
+    g('gobtn').innerHTML = '<span class="spin"></span>轉換中…';
+    g('prog').classList.add('show');
+    setProg(0, '讀取音檔…');
+
+    try {
+      // Decode
+      const arrayBuf = await file.arrayBuffer();
+      setProg(20, '解碼音訊…');
+      const audioCtx = new AudioContext();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
+      await audioCtx.close();
+      setProg(50, '編碼輸出…');
+
+      let blob, ext, outName;
+
+      if (outFmt === 'wav') {
+        const wavBuf = encodeWAV(audioBuffer, sampleRate);
+        blob = new Blob([wavBuf], { type: 'audio/wav' });
+        ext = 'wav';
+      } else {
+        const mime = bestMime(outFmt);
+        if (!mime) throw new Error(`您的瀏覽器不支援輸出 ${outFmt.toUpperCase()}`);
+        setProg(55, `透過 MediaRecorder 編碼 ${outFmt.toUpperCase()}（實時處理）…`);
+        blob = await convertViaMediaRecorder(audioBuffer, mime);
+        ext = outFmt;
+      }
+
+      setProg(95, '產生下載連結…');
+      outName = file.name.replace(/\.[^.]+$/, '') + '.' + ext;
+      const url = URL.createObjectURL(blob);
+      g('dlbtn').href = url;
+      g('dlbtn').download = outName;
+      g('rsub').textContent = outName + ' · ' + (blob.size / 1024 / 1024).toFixed(2) + ' MB';
+
+      setProg(100, '完成！');
+      setTimeout(() => {
+        g('prog').classList.remove('show');
+        g('rcard').classList.add('show');
+      }, 400);
+
+    } catch (err) {
+      console.error(err);
+      g('prog').classList.remove('show');
+      showErr(err.message || '轉換失敗。請確認音檔格式正確，並嘗試使用 Chrome 瀏覽器。');
+    } finally {
+      g('gobtn').disabled = false;
+      g('gobtn').textContent = '再次轉換';
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
